@@ -1,10 +1,17 @@
 pragma solidity ^0.4.18;
 
-import "./ERC20.sol";
+/**************************************************/
+/*IN DEVELOPMENT PHASE, DO NOT USE ON MAIN NETWORK*/
+/**************************************************/
+
+//import "../node_modules/zeppelin-solidity/contracts/token/ERC20/ERC20Basic.sol";
+//import "../node_modules/zeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import "./SafeMath.sol";
+import "./ERC20.sol";//FOR DEV PURPOSE
 
 contract Vesting {
     using SafeMath for uint256;
+    //using SafeERC20 for ERC20Basic;
     
     address public creator;
     address public owner;
@@ -38,7 +45,8 @@ contract Vesting {
         uint256 _firstUnlockDate,
         uint256 _secondUnlockDate,
         uint256 _thirdUnlockDate,
-        uint256 _fourthUnlockDate
+        uint256 _fourthUnlockDate,
+        uint256 _fifthUnlockDate
     ) public {
         creator = _creator;
         owner = _owner;
@@ -46,6 +54,7 @@ contract Vesting {
         secondUnlockDate = _secondUnlockDate;
         thirdUnlockDate = _thirdUnlockDate;
         fourthUnlockDate = _fourthUnlockDate;
+        fifthUnlockDate = _fifthUnlockDate;
         createdAt = now;
     }
 
@@ -54,41 +63,37 @@ contract Vesting {
         Received(msg.sender, msg.value);
     }
 
-    // callable by owner only, after specified time
+    // callable by owner only
     function withdraw() onlyOwner public {
-       //require(now >= firstUnlockDate);
-       //now send all the balance
        msg.sender.transfer(this.balance);
        Withdrew(msg.sender, this.balance);
     }
 
     // callable by owner only, after specified time, only for Tokens implementing ERC20
-    function withdrawTokens(address _tokenContract) onlyOwner public {
-        ERC20 token = ERC20(_tokenContract);
-        //now send all the token balance
+    function withdrawTokens(ERC20 token) onlyOwner public {
         uint256 tokenBalance = token.balanceOf(this);
 
-        if (now >= fifthUnlockDate && currentPhase == Phase.FourthTime) {
+        if (now >= fifthUnlockDate) {
             withdrawBalance = tokenBalance;
         } else if (now >= fourthUnlockDate && currentPhase == Phase.ThirdTime) {
             withdrawBalance = tokenBalance.div(2);
-            setSalePhase(Phase.FourthTime);
+            setVestingPhase(Phase.FourthTime);
         } else if (now >= thirdUnlockDate && currentPhase == Phase.SecondTime) {
             withdrawBalance = tokenBalance.div(3);
-            setSalePhase(Phase.ThirdTime);
+            setVestingPhase(Phase.ThirdTime);
         } else if (now >= secondUnlockDate && currentPhase == Phase.FirstTime) {
             withdrawBalance = tokenBalance.div(4);
-            setSalePhase(Phase.SecondTime);
+            setVestingPhase(Phase.SecondTime);
         } else if (now >= firstUnlockDate && currentPhase == Phase.Created) {
             withdrawBalance = tokenBalance.div(5);
-            setSalePhase(Phase.FirstTime);
+            setVestingPhase(Phase.FirstTime);
         }
 
         token.transfer(owner, withdrawBalance);
-        WithdrewTokens(_tokenContract, msg.sender, withdrawBalance);
+        WithdrewTokens(token, msg.sender, withdrawBalance);
     }
 
-    function info() public view returns(address, address, uint256, uint256, uint256, uint256, uint256, uint256) {
+    function info() public view returns(address, address, uint256, uint256, uint256, uint256, uint256, uint256, uint256) {
         return (
             creator,
             owner,
@@ -102,14 +107,12 @@ contract Vesting {
         );
     }
 
-    function getBalance(address _tokenContract) view returns (uint) {
-        ERC20 token = ERC20(_tokenContract);
-
+    function getBalance(ERC20 token) view returns (uint256) {
         uint256 tokenBalance = token.balanceOf(this);
         return tokenBalance;
     }
 
-    function setSalePhase(Phase _nextPhase) internal {
+    function setVestingPhase(Phase _nextPhase) internal {
         bool canSwitchPhase
         =  (currentPhase == Phase.Created && _nextPhase == Phase.FirstTime)
         || (currentPhase == Phase.FirstTime && _nextPhase == Phase.SecondTime)
@@ -121,23 +124,37 @@ contract Vesting {
         LogPhaseSwitch(_nextPhase);
     }
 
-    // Constant functions
-    function getCurrentPhase() public view returns (string CurrentPhase) {
-        if (currentPhase == Phase.Created) {
+    /*
+    function getCurrentVestingPhase() public constant returns (string CurrentPhase) {
+        if (now >= fifthUnlockDate) {
+            return "You are able to withdraw your tokens";
+        } else if (now >= fourthUnlockDate) {
+            if (currentPhase == Phase.FourthTime) {
+                return "You already got paid for your fourth round, wait until your payday";
+            }
+            return "You are able to withdraw";
+        } else if (now >= thirdUnlockDate) {
+            if (currentPhase == Phase.ThirdTime) {
+                return "You already got paid for your third round, wait until your payday";
+            }
+            return "You are able to withdraw";
+        } else if (now >= secondUnlockDate) {
+            if (currentPhase == Phase.SecondTime) {
+                return "You already got paid for your second round, wait until your payday";
+            }
+            return "You are able to withdraw";
+        } else if (now >= firstUnlockDate) {
+            if (currentPhase == Phase.FirstTime) {
+                return "You already get paid for your first round, wait until your payday";
+            }
+            return "You are able to withdraw your first round";
+        } else if (now < firstUnlockDate) {
             return "Patience young padawan, wait until your payday!";
-        } else if (currentPhase == Phase.FirstTime) {
-            return "First Vesting Round Was Paid";
-        } else if (currentPhase == Phase.SecondTime) {
-            return "Second Vesting Round Was Paid";
-        } else if (currentPhase == Phase.ThirdTime) {
-            return "Third Vesting Round Was Paid";
-        } else if (currentPhase == Phase.FourthTime) {
-            return "Fourth Vesting Round Was Paid";
         }
-
     }
+    */
 
     event Received(address from, uint256 amount);
     event Withdrew(address to, uint256 amount);
-    event WithdrewTokens(address tokenContract, address to, uint256 amount);
+    event WithdrewTokens(ERC20 token, address to, uint256 amount);
 }
